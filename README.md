@@ -84,6 +84,31 @@ npm install
 npm run dev  # Runs on http://localhost:5173
 ```
 
+## Deployment (GitHub Auto Update)
+
+You can deploy once and keep updating by pushing to GitHub.
+
+### Backend on Render
+
+1. Create a Web Service from this GitHub repository.
+2. Set Root Directory to `backend`.
+3. Build Command: `npm install`
+4. Start Command: `npm start`
+5. Add environment variables:
+	- `MONGO_URI`
+	- `JWT_SECRET`
+	- `PORT` (optional on Render)
+
+### Frontend on Vercel
+
+1. Import the same GitHub repository.
+2. Set Root Directory to `frontend`.
+3. Add environment variable:
+	- `VITE_API_BASE_URL=https://YOUR_RENDER_BACKEND_URL/api`
+4. Deploy.
+
+After this, every new push to GitHub can redeploy automatically.
+
 ## API Endpoints
 
 **Auth**
