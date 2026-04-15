@@ -112,7 +112,7 @@ const getTableIdFromQrValue = (rawValue) => {
 
 const CustomerOrderPage = () => {
   const [menuItems, setMenuItems] = useState([]);
-  const [tableId, setTableId] = useState('T1');
+  const [tableId, setTableId] = useState('');
   const [orderType, setOrderType] = useState('dine-in');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [cart, setCart] = useState({});
@@ -649,12 +649,23 @@ const CustomerOrderPage = () => {
 
         <div className="cart-order-fields">
           <div className="table-scan-panel">
-            <div className="table-scan-status">
-              <span className="table-scan-label">Table</span>
-            </div>
-            <button type="button" className="table-scan-button" onClick={() => setIsScannerOpen(true)}>
-              Scan table QR
-            </button>
+            {tableId ? (
+              <div className="table-scan-status-success">
+                <span className="table-scan-success-label">Table: {tableId}</span>
+                <button type="button" className="table-scan-retry" onClick={() => setIsScannerOpen(true)} title="Retry scan">
+                  ↻
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="table-scan-status">
+                  <span className="table-scan-label">Table</span>
+                </div>
+                <button type="button" className="table-scan-button" onClick={() => setIsScannerOpen(true)}>
+                  Scan table QR
+                </button>
+              </>
+            )}
           </div>
           <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
             <option value="cash">Cash</option>
@@ -811,12 +822,23 @@ const CustomerOrderPage = () => {
 
             <div className="cart-order-fields">
               <div className="table-scan-panel">
-                <div className="table-scan-status">
-                  <span className="table-scan-label">Table</span>
-                </div>
-                <button type="button" className="table-scan-button" onClick={() => setIsScannerOpen(true)}>
-                  Scan table QR
-                </button>
+                {tableId ? (
+                  <div className="table-scan-status-success">
+                    <span className="table-scan-success-label">Table: {tableId}</span>
+                    <button type="button" className="table-scan-retry" onClick={() => setIsScannerOpen(true)} title="Retry scan">
+                      ↻
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="table-scan-status">
+                      <span className="table-scan-label">Table</span>
+                    </div>
+                    <button type="button" className="table-scan-button" onClick={() => setIsScannerOpen(true)}>
+                      Scan table QR
+                    </button>
+                  </>
+                )}
               </div>
               <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
                 <option value="cash">Cash</option>
