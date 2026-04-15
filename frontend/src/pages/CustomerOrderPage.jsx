@@ -81,6 +81,35 @@ const getDefaultVariant = (item) => getVariantOptions(item)[0] || null;
 
 const getCartLineKey = (itemId, variantKey) => `${itemId}::${variantKey || 'default'}`;
 
+const getTableIdFromQrValue = (rawValue) => {
+  const trimmedValue = String(rawValue || '').trim();
+
+  if (!trimmedValue) {
+    return '';
+  }
+
+  try {
+    const parsedUrl = new URL(trimmedValue, 'https://scanner.local');
+    const queryTableId =
+      parsedUrl.searchParams.get('tableId') ||
+      parsedUrl.searchParams.get('table') ||
+      parsedUrl.searchParams.get('table_id');
+
+    if (queryTableId) {
+      return queryTableId.trim().toUpperCase();
+    }
+
+    const pathSegment = parsedUrl.pathname.split('/').filter(Boolean).pop();
+    if (pathSegment) {
+      return pathSegment.trim().toUpperCase();
+    }
+  } catch (_error) {
+    // Fallback to the raw QR contents if it is not a full URL.
+  }
+
+  return trimmedValue.toUpperCase();
+};
+
 const CustomerOrderPage = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [tableId, setTableId] = useState('T1');
@@ -93,10 +122,17 @@ const CustomerOrderPage = () => {
   const [selectedVariantKey, setSelectedVariantKey] = useState('');
   const [modalQuantity, setModalQuantity] = useState(1);
   const [modalInstructions, setModalInstructions] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannerStatus, setScannerStatus] = useState('');
+  const [scannerError, setScannerError] = useState('');
+  const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   const sectionRefs = useRef({});
+  const scannerVideoRef = useRef(null);
+  const scannerStreamRef = useRef(null);
+  const scannerFrameRef = useRef(null);
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -205,6 +241,108 @@ const CustomerOrderPage = () => {
     const defaultVariant = getDefaultVariant(selectedItem);
     setSelectedVariantKey(defaultVariant?.key || '');
   }, [selectedItem]);
+
+  useEffect(() => {
+    if (!isScannerOpen) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    let detector = null;
+
+    const stopScannerStream = () => {
+      if (scannerFrameRef.current) {
+        window.cancelAnimationFrame(scannerFrameRef.current);
+        scannerFrameRef.current = null;
+      }
+
+      if (scannerStreamRef.current) {
+        scannerStreamRef.current.getTracks().forEach((track) => track.stop());
+        scannerStreamRef.current = null;
+      }
+
+      if (scannerVideoRef.current) {
+        scannerVideoRef.current.srcObject = null;
+      }
+    };
+
+    const scanFrame = async () => {
+      if (cancelled || !detector || !scannerVideoRef.current) {
+        return;
+      }
+
+      try {
+        const barcodes = await detector.detect(scannerVideoRef.current);
+        if (barcodes.length > 0) {
+          const scannedTableId = getTableIdFromQrValue(barcodes[0].rawValue);
+          if (scannedTableId) {
+            setTableId(scannedTableId);
+            setScannerStatus(`Table set to ${scannedTableId}`);
+          }
+
+          stopScannerStream();
+          setIsScannerOpen(false);
+          return;
+        }
+      } catch (_error) {
+        // Keep scanning until a valid QR is found or the modal is closed.
+      }
+
+      scannerFrameRef.current = window.requestAnimationFrame(scanFrame);
+    };
+
+    const startScanner = async () => {
+      try {
+        setScannerError('');
+        setScannerStatus('Opening camera...');
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setScannerError('Camera access is not supported in this browser.');
+          return;
+        }
+
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false,
+        });
+
+        if (cancelled) {
+          mediaStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        scannerStreamRef.current = mediaStream;
+
+        if (!scannerVideoRef.current) {
+          throw new Error('Scanner video element is unavailable.');
+        }
+
+        scannerVideoRef.current.srcObject = mediaStream;
+        await scannerVideoRef.current.play();
+
+        if (!('BarcodeDetector' in window)) {
+          setScannerError('QR scanning is not supported in this browser. Use Chrome or Edge on mobile.');
+          setScannerStatus('Camera opened, but QR detection is unavailable.');
+          return;
+        }
+
+        detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        setScannerStatus('Point the camera at the table QR code.');
+        scannerFrameRef.current = window.requestAnimationFrame(scanFrame);
+      } catch (cameraError) {
+        setScannerError(cameraError.message || 'Could not access the camera.');
+        setScannerStatus('');
+        stopScannerStream();
+      }
+    };
+
+    startScanner();
+
+    return () => {
+      cancelled = true;
+      stopScannerStream();
+    };
+  }, [isScannerOpen]);
 
   const formatMoney = (value) => `Tk ${Math.round(value)}`;
 
@@ -327,6 +465,11 @@ const CustomerOrderPage = () => {
     setSelectedVariantKey('');
     setModalQuantity(1);
     setModalInstructions('');
+  };
+
+  const restartQrScanner = () => {
+    setIsScannerOpen(false);
+    window.setTimeout(() => setIsScannerOpen(true), 75);
   };
 
   const handleModalAddToCart = () => {
@@ -505,12 +648,14 @@ const CustomerOrderPage = () => {
         </div>
 
         <div className="cart-order-fields">
-          <input
-            type="text"
-            value={tableId}
-            onChange={(event) => setTableId(event.target.value)}
-            placeholder="Table ID"
-          />
+          <div className="table-scan-panel">
+            <div className="table-scan-status">
+              <span className="table-scan-label">Table</span>
+            </div>
+            <button type="button" className="table-scan-button" onClick={() => setIsScannerOpen(true)}>
+              Scan table QR
+            </button>
+          </div>
           <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
             <option value="cash">Cash</option>
             <option value="card">Card</option>
@@ -593,6 +738,165 @@ const CustomerOrderPage = () => {
         {message && <p className="success cart-feedback">{message}</p>}
         {error && <p className="error cart-feedback">{error}</p>}
       </aside>
+
+      {cartEntries.length > 0 && (
+        <div className="mobile-floating-cart" onClick={() => setIsCartModalOpen(true)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setIsCartModalOpen(true)}>
+          <div className="floating-cart-info">
+            <span className="floating-cart-count">{cartEntries.reduce((sum, entry) => sum + entry.quantity, 0)} item(s)</span>
+            <span className="floating-cart-total">{formatMoney(total)}</span>
+          </div>
+          <span className="floating-cart-arrow">›</span>
+        </div>
+      )}
+
+      {isScannerOpen && (
+        <div className="menu-modal-overlay qr-scanner-overlay" role="dialog" aria-modal="true" aria-label="Scan table QR code">
+          <div className="menu-modal glass-panel qr-scanner-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setIsScannerOpen(false)}
+              aria-label="Close scanner"
+            >
+              x
+            </button>
+            <h3>Scan Table QR</h3>
+            <p className="modal-description">
+              Point your phone camera at the QR code placed on the table. The table number will be filled in automatically.
+            </p>
+
+            <div className="qr-scanner-frame">
+              <video ref={scannerVideoRef} className="qr-scanner-video" autoPlay playsInline muted />
+            </div>
+
+            {scannerStatus && <p className="qr-scanner-status">{scannerStatus}</p>}
+            {scannerError && <p className="error cart-feedback">{scannerError}</p>}
+
+            <div className="qr-scanner-actions">
+              <button type="button" className="btn secondary" onClick={() => setIsScannerOpen(false)}>
+                Cancel
+              </button>
+              <button type="button" className="btn" onClick={restartQrScanner}>
+                Restart scan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isCartModalOpen && (
+        <div className="menu-modal-overlay" role="dialog" aria-modal="true" aria-label="Shopping cart">
+          <div className="menu-modal glass-panel cart-modal-panel">
+            <button type="button" className="modal-close" onClick={() => setIsCartModalOpen(false)} aria-label="Close cart">
+              x
+            </button>
+            <h3>Your items</h3>
+
+            <div className="cart-mode-switch">
+              <button
+                type="button"
+                className={orderType === 'dine-in' ? 'active' : ''}
+                onClick={() => setOrderType('dine-in')}
+              >
+                Dine-in
+              </button>
+              <button
+                type="button"
+                className={orderType === 'takeaway' ? 'active' : ''}
+                onClick={() => setOrderType('takeaway')}
+              >
+                Pick-up
+              </button>
+            </div>
+
+            <div className="cart-order-fields">
+              <div className="table-scan-panel">
+                <div className="table-scan-status">
+                  <span className="table-scan-label">Table</span>
+                </div>
+                <button type="button" className="table-scan-button" onClick={() => setIsScannerOpen(true)}>
+                  Scan table QR
+                </button>
+              </div>
+              <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="bkash">bKash</option>
+              </select>
+            </div>
+
+            <div className="cart-modal-items">
+              {cartEntries.length === 0 ? (
+                <p className="cart-empty">Your cart is empty.</p>
+              ) : (
+                cartEntries.map((entry) => (
+                  <article className="cart-item" key={entry.lineKey || entry.item._id}>
+                    <img src={getItemImage(entry.item)} alt={entry.item.name} className="cart-item-image" />
+                    <div className="cart-item-details">
+                      <p className="cart-item-name">{entry.item.name}</p>
+                      {entry.variant && (
+                        <p className="cart-item-variant">
+                          {entry.variant.groupLabel}: {entry.variant.label}
+                        </p>
+                      )}
+                      <p className="cart-item-price">{formatMoney(entry.unitPrice * entry.quantity)}</p>
+                      {entry.specialInstructions && (
+                        <p className="cart-item-note">Note: {entry.specialInstructions}</p>
+                      )}
+                    </div>
+                    <div className="cart-item-actions">
+                      <button type="button" onClick={() => removeFromCart(entry.lineKey)} className="cart-delete">
+                        x
+                      </button>
+                      <div className="cart-qty-controls">
+                        <button
+                          type="button"
+                          onClick={() => setCartItemQuantity(entry.lineKey, entry.quantity - 1)}
+                        >
+                          -
+                        </button>
+                        <span>{entry.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => setCartItemQuantity(entry.lineKey, entry.quantity + 1)}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+
+            <div className="cart-summary">
+              <div>
+                <span>Subtotal</span>
+                <strong>{formatMoney(subtotal)}</strong>
+              </div>
+              <div>
+                <span>{orderType === 'dine-in' ? 'Table service' : 'Delivery fee'}</span>
+                <strong>{formatMoney(deliveryFee)}</strong>
+              </div>
+              <div>
+                <span>Service fee</span>
+                <strong>{formatMoney(serviceFee)}</strong>
+              </div>
+              <div className="cart-total">
+                <span>Total</span>
+                <strong>{formatMoney(total)}</strong>
+              </div>
+            </div>
+
+            <button type="button" className="review-order-btn" onClick={handleReviewPaymentAndAddress}>
+              Review Payment and Address
+            </button>
+
+            {message && <p className="success cart-feedback">{message}</p>}
+            {error && <p className="error cart-feedback">{error}</p>}
+          </div>
+        </div>
+      )}
 
       {selectedItem && (
         <div className="menu-modal-overlay" role="dialog" aria-modal="true" aria-label="Menu item details">

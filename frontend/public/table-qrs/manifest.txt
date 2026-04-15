@@ -1,0 +1,7 @@
+T1	/table-qrs/t1.svg	https://restrauntqrsystemfrontend.vercel.app/customer/order?tableId=T1
+T2	/table-qrs/t2.svg	https://restrauntqrsystemfrontend.vercel.app/customer/order?tableId=T2
+T3	/table-qrs/t3.svg	https://restrauntqrsystemfrontend.vercel.app/customer/order?tableId=T3
+T4	/table-qrs/t4.svg	https://restrauntqrsystemfrontend.vercel.app/customer/order?tableId=T4
+T5	/table-qrs/t5.svg	https://restrauntqrsystemfrontend.vercel.app/customer/order?tableId=T5
+T6	/table-qrs/t6.svg	https://restrauntqrsystemfrontend.vercel.app/customer/order?tableId=T6
+T7	/table-qrs/t7.svg	https://restrauntqrsystemfrontend.vercel.app/customer/order?tableId=T7
