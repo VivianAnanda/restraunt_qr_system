@@ -58,7 +58,10 @@ const ChefOrdersPage = () => {
                     <strong>Table {order.tableId}</strong>
                     <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.4rem' }}>
                       {order.items.map((item, idx) => (
-                        <div key={idx}>{item.quantity}x {item.menuItem.name}</div>
+                        <div key={idx}>
+                          {item.quantity}x {item.menuItem.name}
+                          {item.optionLabel ? ` (${item.optionLabel})` : ''}
+                        </div>
                       ))}
                     </div>
                     <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.3rem' }}>
@@ -88,7 +91,10 @@ const ChefOrdersPage = () => {
                     <strong>Table {order.tableId}</strong>
                     <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.4rem' }}>
                       {order.items.map((item, idx) => (
-                        <div key={idx}>{item.quantity}x {item.menuItem.name}</div>
+                        <div key={idx}>
+                          {item.quantity}x {item.menuItem.name}
+                          {item.optionLabel ? ` (${item.optionLabel})` : ''}
+                        </div>
                       ))}
                     </div>
                     <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.3rem' }}>

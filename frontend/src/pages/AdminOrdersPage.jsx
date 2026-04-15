@@ -93,6 +93,14 @@ const AdminOrdersPage = () => {
                   <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
                     Items: {order.items.length} | Total: Rs. {order.totalAmount} | Est. Time: {order.estimatedPrepTime} min
                   </div>
+                  <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.35rem' }}>
+                    {order.items.map((item, index) => (
+                      <div key={index}>
+                        {item.quantity}x {item.menuItem.name}
+                        {item.optionLabel ? ` (${item.optionLabel})` : ''}
+                      </div>
+                    ))}
+                  </div>
                   <div style={{ marginTop: '0.5rem' }}>
                     <strong>Status: {order.status}</strong>
                   </div>

@@ -1,6 +1,11 @@
 const Order = require('../models/Order');
 const MenuItem = require('../models/MenuItem');
 
+const toValidPrice = (value) => {
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) && parsedValue >= 0 ? parsedValue : null;
+};
+
 const createOrder = async (req, res) => {
   try {
     const { tableId, items, orderType, paymentMethod } = req.body;
@@ -20,18 +25,29 @@ const createOrder = async (req, res) => {
 
     let totalAmount = 0;
     let estimatedPrepTime = 0;
+    const orderItems = [];
 
     for (const item of items) {
       const menuItem = menuMap.get(item.menuItem);
       const quantity = item.quantity || 1;
+      const unitPrice = toValidPrice(item.unitPrice) ?? menuItem.price;
 
-      totalAmount += menuItem.price * quantity;
+      orderItems.push({
+        menuItem: item.menuItem,
+        quantity,
+        specialInstructions: item.specialInstructions || '',
+        optionKey: item.optionKey || '',
+        optionLabel: item.optionLabel || '',
+        unitPrice,
+      });
+
+      totalAmount += unitPrice * quantity;
       estimatedPrepTime += menuItem.prepTime * quantity;
     }
 
     const order = await Order.create({
       tableId,
-      items,
+      items: orderItems,
       orderType,
       paymentMethod,
       totalAmount,

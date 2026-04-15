@@ -8,9 +8,10 @@
 .container {
   width: 100%;
   flex: 1;
-  max-width: 1100px;
+  max-width: 1320px;
   margin: 0 auto;
   padding: 1rem;
+  overflow: auto;
 }
 
 .home-main {

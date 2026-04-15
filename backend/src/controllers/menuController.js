@@ -11,7 +11,7 @@ const getAllMenuItems = async (_req, res) => {
 
 const createMenuItem = async (req, res) => {
   try {
-    const { name, description, price, category, prepTime, isAvailable } = req.body;
+    const { name, description, price, category, image, prepTime, isAvailable } = req.body;
 
     if (!name || price == null || prepTime == null) {
       return res.status(400).json({ message: 'name, price and prepTime are required' });
@@ -22,6 +22,7 @@ const createMenuItem = async (req, res) => {
       description,
       price,
       category,
+      image,
       prepTime,
       isAvailable,
     });

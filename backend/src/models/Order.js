@@ -13,6 +13,27 @@ const orderItemSchema = new mongoose.Schema(
       min: 1,
       default: 1,
     },
+    specialInstructions: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 280,
+    },
+    optionKey: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    optionLabel: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    unitPrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   { _id: false }
 );

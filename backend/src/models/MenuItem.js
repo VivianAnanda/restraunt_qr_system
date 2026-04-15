@@ -22,6 +22,11 @@ const menuItemSchema = new mongoose.Schema(
       default: 'General',
       trim: true,
     },
+    image: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     prepTime: {
       type: Number,
       required: true,
