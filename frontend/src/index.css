@@ -5,8 +5,9 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: #f8fafc;
+  background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.6)), url('/homepage-bg.png') center/cover no-repeat fixed;
   color: #111827;
+  min-height: 100vh;
 }
 
 #root {

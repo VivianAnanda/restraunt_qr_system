@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import './App.css';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -10,11 +10,14 @@ import AdminOrdersPage from './pages/AdminOrdersPage';
 import ChefOrdersPage from './pages/ChefOrdersPage';
 import CustomerOrderPage from './pages/CustomerOrderPage';
 
-const App = () => {
+const AppLayout = () => {
+  const location = useLocation();
+  const isHomeRoute = location.pathname === '/';
+
   return (
-    <BrowserRouter>
+    <div className="app-shell">
       <Navbar />
-      <main className="container">
+      <main className={isHomeRoute ? 'home-main' : 'container'}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -49,6 +52,14 @@ const App = () => {
           />
         </Routes>
       </main>
+    </div>
+  );
+};
+
+const App = () => {
+  return (
+    <BrowserRouter>
+      <AppLayout />
     </BrowserRouter>
   );
 };
