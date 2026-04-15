@@ -47,6 +47,31 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   margin-bottom: 0;
 }
+.hero-content::before,
+.feature-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.03));
+}
+
+.hero-content::after,
+.feature-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: rgba(10, 10, 10, 0.12);
+}
+
+.hero-content > *,
+.feature-card > * {
+  position: relative;
+  z-index: 1;
+}
 
 @keyframes fadeInUp {
   from {
@@ -170,6 +195,10 @@
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  isolation: isolate;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   border: 1px solid rgba(255, 255, 255, 0.15);
   min-height: 180px;
   padding: 1.5rem 1.35rem;
