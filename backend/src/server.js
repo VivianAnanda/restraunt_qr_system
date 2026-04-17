@@ -14,8 +14,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const API_BUILD = '2026-04-17-archive-routes';
+
 app.get('/api/health', (_req, res) => {
-  res.status(200).json({ message: 'API is running' });
+  res.status(200).json({
+    message: 'API is running',
+    build: API_BUILD,
+  });
 });
 
 app.use('/api/auth', authRoutes);
