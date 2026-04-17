@@ -1,5 +1,26 @@
 const mongoose = require('mongoose');
 
+const menuItemVariantSchema = new mongoose.Schema(
+  {
+    key: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    label: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+  },
+  { _id: false }
+);
+
 const menuItemSchema = new mongoose.Schema(
   {
     name: {
@@ -26,6 +47,10 @@ const menuItemSchema = new mongoose.Schema(
       type: String,
       default: '',
       trim: true,
+    },
+    variants: {
+      type: [menuItemVariantSchema],
+      default: [],
     },
     prepTime: {
       type: Number,

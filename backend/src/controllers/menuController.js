@@ -1,5 +1,67 @@
 const MenuItem = require('../models/MenuItem');
 
+const toNonEmptyString = (value) => String(value ?? '').trim();
+
+const toNumberOrNull = (value) => {
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+};
+
+const normalizeVariants = (variantsInput) => {
+  if (!Array.isArray(variantsInput)) {
+    return [];
+  }
+
+  return variantsInput
+    .map((variant) => {
+      const key = toNonEmptyString(variant?.key);
+      const label = toNonEmptyString(variant?.label);
+      const price = toNumberOrNull(variant?.price);
+
+      if (!key || !label || price == null || price < 0) {
+        return null;
+      }
+
+      return {
+        key,
+        label,
+        price,
+      };
+    })
+    .filter(Boolean);
+};
+
+const getBasePriceFromVariants = (variants) => {
+  if (!variants.length) {
+    return null;
+  }
+
+  return variants.reduce((minPrice, variant) => Math.min(minPrice, variant.price), variants[0].price);
+};
+
+const buildMenuItemPayload = (body) => {
+  const name = toNonEmptyString(body?.name);
+  const description = toNonEmptyString(body?.description);
+  const category = toNonEmptyString(body?.category);
+  const image = toNonEmptyString(body?.image);
+  const prepTime = toNumberOrNull(body?.prepTime);
+  const variants = normalizeVariants(body?.variants);
+  const fallbackPrice = toNumberOrNull(body?.price);
+  const derivedPrice = getBasePriceFromVariants(variants);
+  const price = derivedPrice ?? fallbackPrice;
+
+  return {
+    name,
+    description,
+    category,
+    prepTime,
+    variants,
+    price,
+    isAvailable: body?.isAvailable ?? true,
+    ...(image ? { image } : {}),
+  };
+};
+
 const getAllMenuItems = async (_req, res) => {
   try {
     const menuItems = await MenuItem.find().sort({ createdAt: -1 });
@@ -11,21 +73,21 @@ const getAllMenuItems = async (_req, res) => {
 
 const createMenuItem = async (req, res) => {
   try {
-    const { name, description, price, category, image, prepTime, isAvailable } = req.body;
+    const payload = buildMenuItemPayload(req.body);
 
-    if (!name || price == null || prepTime == null) {
-      return res.status(400).json({ message: 'name, price and prepTime are required' });
+    if (!payload.name || !payload.description || !payload.category || !payload.image || payload.prepTime == null) {
+      return res.status(400).json({ message: 'name, description, category, image and prepTime are required' });
     }
 
-    const menuItem = await MenuItem.create({
-      name,
-      description,
-      price,
-      category,
-      image,
-      prepTime,
-      isAvailable,
-    });
+    if (!payload.variants.length) {
+      return res.status(400).json({ message: 'At least one size/piece option with price is required' });
+    }
+
+    if (payload.price == null || payload.price < 0 || payload.prepTime < 1) {
+      return res.status(400).json({ message: 'Invalid variant prices or prepTime value' });
+    }
+
+    const menuItem = await MenuItem.create(payload);
 
     return res.status(201).json(menuItem);
   } catch (error) {
@@ -37,7 +99,21 @@ const updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const menuItem = await MenuItem.findByIdAndUpdate(id, req.body, {
+    const payload = buildMenuItemPayload(req.body);
+
+    if (!payload.name || !payload.description || !payload.category || payload.prepTime == null) {
+      return res.status(400).json({ message: 'name, description, category and prepTime are required' });
+    }
+
+    if (!payload.variants.length) {
+      return res.status(400).json({ message: 'At least one size/piece option with price is required' });
+    }
+
+    if (payload.price == null || payload.price < 0 || payload.prepTime < 1) {
+      return res.status(400).json({ message: 'Invalid variant prices or prepTime value' });
+    }
+
+    const menuItem = await MenuItem.findByIdAndUpdate(id, payload, {
       new: true,
       runValidators: true,
     });

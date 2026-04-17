@@ -168,6 +168,7 @@
 
 input,
 select,
+textarea,
 button {
   padding: 0.6rem 0.7rem;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -176,18 +177,21 @@ button {
 }
 
 input,
-select {
+select,
+textarea {
   background: rgba(20, 27, 37, 0.74);
   color: #ffffff;
 }
 
 input::placeholder,
-select::placeholder {
+select::placeholder,
+textarea::placeholder {
   color: #b9bfcb;
 }
 
 input:focus,
 select:focus,
+textarea:focus,
 button:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.22);
@@ -386,6 +390,31 @@ button:focus {
   display: flex;
   gap: 0.4rem;
   align-items: center;
+}
+
+.admin-menu-form-card {
+  align-self: start;
+}
+
+.admin-menu-field-label {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #f7f8fa;
+}
+
+.admin-menu-description-input {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+}
+
+.admin-menu-form-card .form-grid input:not([type='checkbox']),
+.admin-menu-form-card .form-grid select,
+.admin-menu-form-card .form-grid textarea {
+  display: block;
+  width: 100%;
 }
 
 .error {

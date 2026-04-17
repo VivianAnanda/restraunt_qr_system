@@ -311,6 +311,9 @@ const AdminOrdersPage = () => {
                         <div key={index}>
                           {item.quantity}x {item.menuItem.name}
                           {item.optionLabel ? ` (${item.optionLabel})` : ''}
+                          {item.specialInstructions?.trim()
+                            ? ` - Note: ${item.specialInstructions.trim()}`
+                            : ''}
                         </div>
                       ))}
                     </div>

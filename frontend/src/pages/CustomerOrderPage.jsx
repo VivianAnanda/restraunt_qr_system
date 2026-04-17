@@ -9,9 +9,7 @@ const PREFERRED_CATEGORY_ORDER = [
   'Pizzas',
   'Drinks',
   'Meatboxes',
-  'Wings',
-  'Fries',
-  'Sides',
+  'Pasta',
 ];
 
 const VARIANT_RULES = {
@@ -63,16 +61,54 @@ const VARIANT_RULES = {
   },
 };
 
-const getVariantConfig = (item) => VARIANT_RULES[item?.category?.trim()] || null;
+const getVariantGroupLabel = (category) => {
+  if (category === 'Fried Chicken') {
+    return 'Pieces';
+  }
+
+  if (category === 'Pizzas') {
+    return 'Inches';
+  }
+
+  return 'Size';
+};
 
 const getVariantOptions = (item) => {
-  const variantConfig = getVariantConfig(item);
+  const normalizedCategory = item?.category?.trim();
+
+  if (Array.isArray(item?.variants) && item.variants.length > 0) {
+    const groupLabel = getVariantGroupLabel(normalizedCategory);
+
+    return item.variants
+      .map((variant) => {
+        const key = String(variant?.key ?? '').trim();
+        const label = String(variant?.label ?? '').trim();
+        const price = Number(variant?.price);
+
+        if (!key || !label || !Number.isFinite(price) || price < 0) {
+          return null;
+        }
+
+        return {
+          key,
+          label,
+          groupLabel,
+          price,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  const variantConfig = VARIANT_RULES[normalizedCategory] || null;
   if (!variantConfig) {
     return [];
   }
 
+  const groupLabel = getVariantGroupLabel(normalizedCategory);
+
   return variantConfig.options.map((option) => ({
     ...option,
+    groupLabel,
     price: Math.round((item.price || 0) * option.priceFactor),
   }));
 };
@@ -1594,7 +1630,9 @@ const CustomerOrderPage = () => {
 
             {getVariantOptions(selectedItem).length > 0 && (
               <div className="modal-variant-section">
-                <p className="modal-option-label">Choose {getVariantConfig(selectedItem).label.toLowerCase()}</p>
+                <p className="modal-option-label">
+                  Choose {getVariantGroupLabel(selectedItem?.category?.trim()).toLowerCase()}
+                </p>
                 <div className="modal-variant-grid">
                   {getVariantOptions(selectedItem).map((option) => (
                     <button
