@@ -1172,6 +1172,19 @@ const CustomerOrderPage = () => {
         {error && <p className="error cart-feedback">{error}</p>}
       </aside>
 
+      <button
+        type="button"
+        className={`mobile-floating-tracker ${cartEntries.length > 0 ? 'with-cart' : ''}`}
+        onClick={() => setIsOrderTrackerOpen(true)}
+      >
+        <div className="floating-tracker-info">
+          <span className="floating-tracker-label">Order timer</span>
+          <strong className="floating-tracker-time">{getTableTrackerLabel()}</strong>
+          <span className="floating-tracker-count">{visibleTableOrders.length} order(s) ongoing</span>
+        </div>
+        <span className="floating-tracker-arrow">›</span>
+      </button>
+
       {cartEntries.length > 0 && (
         <div className="mobile-floating-cart" onClick={() => setIsCartModalOpen(true)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setIsCartModalOpen(true)}>
           <div className="floating-cart-info">

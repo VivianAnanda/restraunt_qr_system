@@ -70,6 +70,10 @@
   display: none;
 }
 
+.mobile-floating-tracker {
+  display: none;
+}
+
 .menu-search-row {
   margin-bottom: 0.7rem;
   padding-top: 0.2rem;
@@ -720,6 +724,7 @@
     grid-template-columns: 1fr;
     height: auto;
     overflow: visible;
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom));
   }
 
   .customer-menu-left {
@@ -736,6 +741,55 @@
     position: static;
     height: auto;
     max-height: none;
+  }
+
+  .customer-cart-sidebar .order-tracker-pill {
+    display: none;
+  }
+
+  .mobile-floating-tracker {
+    position: fixed;
+    left: 1rem;
+    right: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    border-radius: 0.75rem;
+    background: linear-gradient(120deg, rgba(251, 191, 36, 0.95), rgba(245, 158, 11, 0.92));
+    color: var(--menu-accent-text);
+    padding: 0.85rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    z-index: 20;
+    box-shadow: 0 10px 30px rgba(251, 191, 36, 0.22);
+    text-align: left;
+  }
+
+  .floating-tracker-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+    min-width: 0;
+  }
+
+  .floating-tracker-label,
+  .floating-tracker-count {
+    font-size: 0.82rem;
+    color: var(--menu-accent-text);
+    opacity: 0.9;
+  }
+
+  .floating-tracker-time {
+    font-size: 1.12rem;
+    color: var(--menu-accent-text);
+  }
+
+  .floating-tracker-arrow {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--menu-accent-text);
   }
 
   .cart-items-list {
@@ -772,6 +826,14 @@
 
   .customer-cart-sidebar {
     display: none;
+  }
+
+  .customer-menu-page {
+    padding-bottom: calc(10.8rem + env(safe-area-inset-bottom));
+  }
+
+  .mobile-floating-tracker.with-cart {
+    bottom: calc(6.8rem + env(safe-area-inset-bottom));
   }
 
   .mobile-floating-cart {
