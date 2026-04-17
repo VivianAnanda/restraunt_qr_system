@@ -2,14 +2,28 @@ const express = require('express');
 const {
   createOrder,
   getAllOrders,
-  updateOrderStatus,
+  getArchivedOrders,
+  getOrderPublicStatus,
+  getPublicOrdersByTable,
+  updatePaymentStatus,
+  sendOrderToKitchen,
+  updateKitchenStatus,
+  completeOrder,
+  removeCompletedOrder,
 } = require('../controllers/orderController');
 const { protect, allowRoles } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
 router.post('/', createOrder);
+router.get('/:id/public-status', getOrderPublicStatus);
+router.get('/public/table/:tableId', getPublicOrdersByTable);
 router.get('/', protect, allowRoles('admin', 'chef'), getAllOrders);
-router.patch('/:id/status', protect, allowRoles('chef', 'admin'), updateOrderStatus);
+router.get('/archived/list', protect, allowRoles('admin'), getArchivedOrders);
+router.patch('/:id/payment-status', protect, allowRoles('admin'), updatePaymentStatus);
+router.patch('/:id/send-to-kitchen', protect, allowRoles('admin'), sendOrderToKitchen);
+router.patch('/:id/kitchen-status', protect, allowRoles('chef', 'admin'), updateKitchenStatus);
+router.patch('/:id/complete', protect, allowRoles('admin'), completeOrder);
+router.delete('/:id', protect, allowRoles('admin'), removeCompletedOrder);
 
 module.exports = router;

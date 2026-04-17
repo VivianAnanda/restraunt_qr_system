@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AdminMenuPage from './pages/AdminMenuPage';
 import AdminOrdersPage from './pages/AdminOrdersPage';
+import AdminArchivedOrdersPage from './pages/AdminArchivedOrdersPage';
 import ChefOrdersPage from './pages/ChefOrdersPage';
 import CustomerOrderPage from './pages/CustomerOrderPage';
 
@@ -38,6 +39,15 @@ const AppLayout = () => {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminOrdersPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/orders/archived"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminArchivedOrdersPage />
               </ProtectedRoute>
             }
           />

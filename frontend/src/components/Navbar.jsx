@@ -55,6 +55,11 @@ const Navbar = () => {
             Admin Orders
           </Link>
         )}
+        {user?.role === 'admin' && (
+          <Link to="/admin/orders/archived" onClick={closeMenu}>
+            Archived Orders
+          </Link>
+        )}
         {user?.role === 'chef' && (
           <Link to="/chef/orders" onClick={closeMenu}>
             Chef Orders

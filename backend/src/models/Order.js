@@ -63,6 +63,36 @@ const orderSchema = new mongoose.Schema(
       enum: ['cash', 'card', 'bkash'],
       required: true,
     },
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'paid'],
+      default: 'pending',
+    },
+    sentToKitchen: {
+      type: Boolean,
+      default: false,
+    },
+    kitchenStatus: {
+      type: String,
+      enum: ['queued', 'started', 'cooking', 'almost-done', 'ready-to-serve'],
+      default: 'queued',
+    },
+    prepStartedAt: {
+      type: Date,
+      default: null,
+    },
+    prepEndsAt: {
+      type: Date,
+      default: null,
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+    archivedAt: {
+      type: Date,
+      default: null,
+    },
     status: {
       type: String,
       enum: ['pending', 'in-progress', 'completed'],

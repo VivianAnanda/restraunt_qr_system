@@ -342,6 +342,30 @@
   color: #ffffff;
 }
 
+.order-tracker-pill {
+  width: 100%;
+  display: grid;
+  gap: 0.25rem;
+  text-align: left;
+  padding: 0.8rem 0.9rem;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.12);
+  color: #fff4cc;
+  cursor: pointer;
+}
+
+.order-tracker-pill strong {
+  font-size: 1.05rem;
+  color: #fef3c7;
+}
+
+.order-tracker-label,
+.order-tracker-count {
+  font-size: 0.82rem;
+  color: #e5e7eb;
+}
+
 .cart-header {
   display: flex;
   justify-content: space-between;
@@ -916,4 +940,147 @@
 .cart-feedback.error {
   background: rgba(239, 68, 68, 0.2);
   color: #fca5a5;
+}
+
+.payment-modal-panel {
+  width: min(560px, 100%);
+  min-height: auto;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.payment-summary {
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.7rem;
+  padding: 0.75rem;
+  background: rgba(8, 11, 16, 0.36);
+}
+
+.payment-summary-row,
+.payment-summary-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+  align-items: center;
+  color: #dde1ea;
+}
+
+.payment-summary-total {
+  margin-top: 0.35rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 1.02rem;
+}
+
+.payment-cash-note {
+  margin-top: 0.8rem;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 0.65rem;
+  padding: 0.75rem;
+  color: #f8e4ab;
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.payment-fields-grid {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+
+.payment-field-hint {
+  display: block;
+  margin-top: -0.25rem;
+  color: #c4cad7;
+  font-size: 0.78rem;
+}
+
+.order-tracker-modal {
+  width: min(620px, 100%);
+  max-height: 85vh;
+  overflow: auto;
+}
+
+.order-tracker-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
+.order-tracker-card {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.8rem;
+  background: rgba(18, 24, 34, 0.82);
+  padding: 0.8rem;
+}
+
+.order-tracker-card-header,
+.order-tracker-card-meta,
+.order-tracker-item-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.order-tracker-card-header {
+  align-items: center;
+}
+
+.order-tracker-card-status {
+  color: #86efac;
+  font-size: 0.85rem;
+}
+
+.order-tracker-card-meta {
+  margin-top: 0.35rem;
+  color: #d1d5db;
+  font-size: 0.84rem;
+  flex-wrap: wrap;
+}
+
+.order-tracker-items {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.7rem;
+}
+
+.order-tracker-item-row {
+  color: #edf1f7;
+}
+
+.payment-fields-grid input,
+.payment-fields-inline input {
+  width: 100%;
+  background: rgba(20, 27, 37, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.payment-fields-inline {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.payment-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 0.9rem;
+}
+
+.payment-modal-actions .btn {
+  min-width: 180px;
+}
+
+@media (max-width: 640px) {
+  .payment-modal-actions {
+    flex-direction: column;
+  }
+
+  .payment-modal-actions .btn {
+    width: 100%;
+    min-width: 0;
+  }
 }

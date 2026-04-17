@@ -110,9 +110,33 @@ const getTableIdFromQrValue = (rawValue) => {
   return trimmedValue.toUpperCase();
 };
 
+const sanitizeDigits = (value, maxLength) => String(value || '').replace(/\D/g, '').slice(0, maxLength);
+
+const formatCardNumber = (value) => {
+  const digits = sanitizeDigits(value, 16);
+  return digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+};
+
+const formatCardExpiry = (value) => {
+  const digits = sanitizeDigits(value, 4);
+  if (digits.length <= 2) {
+    return digits;
+  }
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}`;
+};
+
+const TRACKER_HIDE_DELAY_MS = 60 * 1000;
+
 const CustomerOrderPage = () => {
   const [menuItems, setMenuItems] = useState([]);
-  const [tableId, setTableId] = useState('');
+  const [tableId, setTableId] = useState(() => {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+
+    const queryTableId = new URLSearchParams(window.location.search).get('tableId');
+    return queryTableId ? queryTableId.trim().toUpperCase() : '';
+  });
   const [orderType, setOrderType] = useState('dine-in');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [cart, setCart] = useState({});
@@ -126,6 +150,21 @@ const CustomerOrderPage = () => {
   const [scannerStatus, setScannerStatus] = useState('');
   const [scannerError, setScannerError] = useState('');
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [activeCashOrderId, setActiveCashOrderId] = useState('');
+  const [cashPaymentState, setCashPaymentState] = useState('idle');
+  const [tableOrders, setTableOrders] = useState([]);
+  const [isOrderTrackerOpen, setIsOrderTrackerOpen] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [paymentDetails, setPaymentDetails] = useState({
+    cardHolderName: '',
+    cardNumber: '',
+    cardExpiry: '',
+    cardCvv: '',
+    bkashNumber: '',
+    bkashPin: '',
+  });
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -344,6 +383,79 @@ const CustomerOrderPage = () => {
     };
   }, [isScannerOpen]);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    if (!tableId.trim()) {
+      setTableOrders([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const fetchTableOrders = async () => {
+      try {
+        const response = await api.get(`/orders/public/table/${tableId.trim()}`);
+        if (!cancelled) {
+          setTableOrders(response.data);
+        }
+      } catch (_error) {
+        if (!cancelled) {
+          setTableOrders([]);
+        }
+      }
+    };
+
+    fetchTableOrders();
+    const intervalId = window.setInterval(fetchTableOrders, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [tableId]);
+
+  useEffect(() => {
+    if (
+      !isPaymentModalOpen ||
+      paymentMethod !== 'cash' ||
+      !activeCashOrderId ||
+      cashPaymentState !== 'waiting'
+    ) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const checkCashPaymentStatus = async () => {
+      try {
+        const response = await api.get(`/orders/${activeCashOrderId}/public-status`);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (response.data.paymentStatus === 'paid') {
+          setCashPaymentState('confirmed');
+          setMessage('Order confirmed. Payment received and verified by admin.');
+        }
+      } catch (_err) {
+        // Keep polling while waiting unless modal is closed.
+      }
+    };
+
+    const intervalId = window.setInterval(checkCashPaymentStatus, 3000);
+    checkCashPaymentStatus();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [isPaymentModalOpen, paymentMethod, activeCashOrderId, cashPaymentState]);
+
   const formatMoney = (value) => `Tk ${Math.round(value)}`;
 
   const getItemImage = (item) => {
@@ -472,6 +584,229 @@ const CustomerOrderPage = () => {
     window.setTimeout(() => setIsScannerOpen(true), 75);
   };
 
+  const handlePaymentFieldChange = (field, value) => {
+    let normalizedValue = value;
+
+    if (field === 'cardHolderName') {
+      normalizedValue = String(value || '')
+        .toUpperCase()
+        .replace(/[^A-Z ]/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .slice(0, 40);
+    } else if (field === 'cardNumber') {
+      normalizedValue = formatCardNumber(value);
+    } else if (field === 'cardExpiry') {
+      normalizedValue = formatCardExpiry(value);
+    } else if (field === 'cardCvv') {
+      normalizedValue = sanitizeDigits(value, 3);
+    } else if (field === 'bkashNumber') {
+      normalizedValue = sanitizeDigits(value, 11);
+    } else if (field === 'bkashPin') {
+      normalizedValue = sanitizeDigits(value, 5);
+    }
+
+    setPaymentDetails((prev) => ({
+      ...prev,
+      [field]: normalizedValue,
+    }));
+  };
+
+  const getOrderItemsPayload = () =>
+    cartEntries.map((entry) => ({
+      menuItem: entry.item._id,
+      quantity: entry.quantity,
+      optionKey: entry.variant?.key || '',
+      optionLabel: entry.variant?.label || '',
+      unitPrice: entry.unitPrice,
+      lineTotal: entry.unitPrice * entry.quantity,
+      ...(entry.specialInstructions ? { specialInstructions: entry.specialInstructions } : {}),
+    }));
+
+  const resetPaymentForm = () => {
+    setPaymentDetails({
+      cardHolderName: '',
+      cardNumber: '',
+      cardExpiry: '',
+      cardCvv: '',
+      bkashNumber: '',
+      bkashPin: '',
+    });
+  };
+
+  const closePaymentModal = () => {
+    setIsPaymentModalOpen(false);
+
+    if (paymentMethod !== 'cash' || cashPaymentState === 'confirmed' || cashPaymentState === 'idle') {
+      setActiveCashOrderId('');
+      setCashPaymentState('idle');
+    }
+  };
+
+  const validatePaymentDetails = () => {
+    if (paymentMethod === 'cash') {
+      return '';
+    }
+
+    if (paymentMethod === 'card') {
+      const cardHolderName = paymentDetails.cardHolderName.trim();
+      const cardNumberDigits = paymentDetails.cardNumber.replace(/\s/g, '');
+      const cardExpiry = paymentDetails.cardExpiry;
+      const cardCvv = paymentDetails.cardCvv;
+
+      if (!/^[A-Z]+(?: [A-Z]+)+$/.test(cardHolderName)) {
+        return 'Card holder name must be in ALL CAPS with at least first and last name.';
+      }
+
+      if (!/^\d{16}$/.test(cardNumberDigits)) {
+        return 'Card number must be exactly 16 digits.';
+      }
+
+      if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry)) {
+        return 'Card expiry must be in MM/YY format.';
+      }
+
+      const [month, year] = cardExpiry.split('/');
+      const expiryDate = new Date(2000 + Number(year), Number(month), 0, 23, 59, 59, 999);
+      if (Number.isNaN(expiryDate.getTime()) || expiryDate < new Date()) {
+        return 'Card expiry date cannot be in the past.';
+      }
+
+      if (!/^\d{3}$/.test(cardCvv)) {
+        return 'Card CVV must be exactly 3 digits.';
+      }
+
+      return '';
+    }
+
+    if (!/^01\d{9}$/.test(paymentDetails.bkashNumber)) {
+      return 'bKash number must be exactly 11 digits and start with 01.';
+    }
+
+    if (!/^\d{5}$/.test(paymentDetails.bkashPin)) {
+      return 'bKash PIN must be exactly 5 digits.';
+    }
+
+    return '';
+  };
+
+  const getCardNumberHint = () => {
+    const digits = paymentDetails.cardNumber.replace(/\s/g, '').length;
+    return `${digits}/16 digits`;
+  };
+
+  const getCardCvvHint = () => `${paymentDetails.cardCvv.length}/3 digits`;
+
+  const getBkashNumberHint = () => `${paymentDetails.bkashNumber.length}/11 digits`;
+
+  const getBkashPinHint = () => `${paymentDetails.bkashPin.length}/5 digits`;
+
+  const getCardNameHint = () => 'Use ALL CAPS, letters and spaces only (e.g. MD RAHIM UDDIN).';
+
+  const getOrderRemainingSeconds = (order) => {
+    if (order?.completedAt) {
+      return 0;
+    }
+
+    if (!order?.prepStartedAt || !order?.prepEndsAt) {
+      return null;
+    }
+
+    const remainingSeconds = Math.ceil((new Date(order.prepEndsAt).getTime() - currentTime) / 1000);
+    return Math.max(0, remainingSeconds);
+  };
+
+  const visibleTableOrders = useMemo(() => {
+    if (tableOrders.length === 0) {
+      return [];
+    }
+
+    const allCompleted = tableOrders.every((order) => Boolean(order.completedAt));
+
+    if (!allCompleted) {
+      return tableOrders;
+    }
+
+    const latestCompletedAtMs = tableOrders.reduce((latestMs, order) => {
+      const completedAtMs = new Date(order.completedAt).getTime();
+      if (!Number.isFinite(completedAtMs)) {
+        return latestMs;
+      }
+      return Math.max(latestMs, completedAtMs);
+    }, 0);
+
+    if (!latestCompletedAtMs) {
+      return tableOrders;
+    }
+
+    const shouldHideTrackerOrders = currentTime - latestCompletedAtMs >= TRACKER_HIDE_DELAY_MS;
+    return shouldHideTrackerOrders ? [] : tableOrders;
+  }, [tableOrders, currentTime]);
+
+  const getTableActiveCountdownSeconds = () =>
+    visibleTableOrders.reduce((sum, order) => {
+      const remainingSeconds = getOrderRemainingSeconds(order);
+      return remainingSeconds !== null ? sum + remainingSeconds : sum;
+    }, 0);
+
+  const getTableTrackerLabel = () => {
+    const startedOrders = visibleTableOrders.filter((order) => order.prepStartedAt && order.prepEndsAt && !order.completedAt);
+    const queuedOrders = visibleTableOrders.filter((order) => order.sentToKitchen && order.kitchenStatus === 'queued');
+    const completedOrders = visibleTableOrders.filter((order) => order.completedAt);
+
+    if (startedOrders.length > 0) {
+      return `${Math.ceil(getTableActiveCountdownSeconds() / 60)} min`;
+    }
+
+    if (queuedOrders.length > 0) {
+      return 'Not started yet';
+    }
+
+    if (visibleTableOrders.length > 0) {
+      if (completedOrders.length === visibleTableOrders.length) {
+        return 'Completed';
+      }
+
+      return 'Waiting to be sent';
+    }
+
+    return 'No live orders';
+  };
+
+  const getOrderStageLabel = (order) => {
+    if (order.completedAt) {
+      return 'Completed';
+    }
+
+    if (!order.sentToKitchen) {
+      return 'Waiting for admin';
+    }
+
+    if (order.kitchenStatus === 'queued') {
+      return 'Queued, not cooking yet';
+    }
+
+    if (order.kitchenStatus === 'started') {
+      return 'Cooking started';
+    }
+
+    if (order.kitchenStatus === 'cooking') {
+      return 'Cooking';
+    }
+
+    if (order.kitchenStatus === 'almost-done') {
+      return 'Almost done';
+    }
+
+    return 'Ready to serve';
+  };
+
+  const formatDuration = (totalSeconds) => {
+    const safeSeconds = Math.max(0, Math.floor(totalSeconds || 0));
+    const minutes = Math.floor(safeSeconds / 60);
+    const seconds = safeSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  };
+
   const handleModalAddToCart = () => {
     if (!selectedItem) {
       return;
@@ -492,19 +827,11 @@ const CustomerOrderPage = () => {
     closeItemModal();
   };
 
-  const handleReviewPaymentAndAddress = async () => {
+  const handleReviewPaymentAndAddress = () => {
     setMessage('');
     setError('');
 
-    const items = cartEntries.map((entry) => ({
-      menuItem: entry.item._id,
-      quantity: entry.quantity,
-      optionKey: entry.variant?.key || '',
-      optionLabel: entry.variant?.label || '',
-      unitPrice: entry.unitPrice,
-      lineTotal: entry.unitPrice * entry.quantity,
-      ...(entry.specialInstructions ? { specialInstructions: entry.specialInstructions } : {}),
-    }));
+    const items = getOrderItemsPayload();
 
     if (items.length === 0) {
       setError('Add at least one item to the cart.');
@@ -512,11 +839,89 @@ const CustomerOrderPage = () => {
     }
 
     if (!tableId.trim()) {
-      setError('Please enter a table ID before placing the order.');
+      setError('Please scan a table QR before placing the order.');
+      return;
+    }
+
+    if (paymentMethod === 'cash') {
+      if (activeCashOrderId && ['creating', 'waiting', 'confirmed'].includes(cashPaymentState)) {
+        setIsPaymentModalOpen(true);
+        return;
+      }
+
+      setCashPaymentState('creating');
+      setIsPaymentModalOpen(true);
+      placeCashOrderAndWait();
+      return;
+    }
+
+    setIsPaymentModalOpen(true);
+  };
+
+  const placeCashOrderAndWait = async () => {
+    const items = getOrderItemsPayload();
+
+    if (items.length === 0 || !tableId.trim()) {
       return;
     }
 
     try {
+      setIsSubmittingOrder(true);
+      setCashPaymentState('creating');
+      setError('');
+
+      const response = await api.post('/orders', {
+        tableId,
+        orderType,
+        paymentMethod: 'cash',
+        items,
+      });
+
+      setActiveCashOrderId(response.data._id);
+      setIsCartModalOpen(false);
+
+      if (response.data.paymentStatus === 'paid') {
+        setCashPaymentState('confirmed');
+        setMessage('Order confirmed. Payment received and verified by admin.');
+      } else {
+        setCashPaymentState('waiting');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to place order');
+      setCashPaymentState('idle');
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  };
+
+  const placeOrder = async () => {
+    setMessage('');
+    setError('');
+
+    if (paymentMethod === 'cash') {
+      return;
+    }
+
+    const validationError = validatePaymentDetails();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    const items = getOrderItemsPayload();
+
+    if (items.length === 0) {
+      setError('Add at least one item to the cart.');
+      return;
+    }
+
+    if (!tableId.trim()) {
+      setError('Please scan a table QR before placing the order.');
+      return;
+    }
+
+    try {
+      setIsSubmittingOrder(true);
       const response = await api.post('/orders', {
         tableId,
         orderType,
@@ -524,10 +929,21 @@ const CustomerOrderPage = () => {
         items,
       });
 
-      setMessage(`Order placed. Status: ${response.data.status}. ETA: ${response.data.estimatedPrepTime} min.`);
+      const paymentText = response.data.paymentStatus === 'paid'
+        ? 'Payment completed successfully.'
+        : 'Payment pending. Please pay at the cashier.';
+
+      setMessage(`Order placed. ${paymentText} ETA: ${response.data.estimatedPrepTime} min.`);
       setCart({});
+      setIsPaymentModalOpen(false);
+      setIsCartModalOpen(false);
+      resetPaymentForm();
+      setActiveCashOrderId('');
+      setCashPaymentState('idle');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to place order');
+    } finally {
+      setIsSubmittingOrder(false);
     }
   };
 
@@ -673,6 +1089,12 @@ const CustomerOrderPage = () => {
             <option value="bkash">bKash</option>
           </select>
         </div>
+
+        <button type="button" className="order-tracker-pill" onClick={() => setIsOrderTrackerOpen(true)}>
+          <span className="order-tracker-label">Order timer</span>
+          <strong>{getTableTrackerLabel()}</strong>
+          <span className="order-tracker-count">{visibleTableOrders.length} order(s)</span>
+        </button>
 
         <div className="cart-header">
           <h3>Your items</h3>
@@ -847,6 +1269,12 @@ const CustomerOrderPage = () => {
               </select>
             </div>
 
+            <button type="button" className="order-tracker-pill" onClick={() => setIsOrderTrackerOpen(true)}>
+              <span className="order-tracker-label">Order timer</span>
+              <strong>{getTableTrackerLabel()}</strong>
+              <span className="order-tracker-count">{visibleTableOrders.length} order(s)</span>
+            </button>
+
             <div className="cart-modal-items">
               {cartEntries.length === 0 ? (
                 <p className="cart-empty">Your cart is empty.</p>
@@ -916,6 +1344,217 @@ const CustomerOrderPage = () => {
 
             {message && <p className="success cart-feedback">{message}</p>}
             {error && <p className="error cart-feedback">{error}</p>}
+          </div>
+        </div>
+      )}
+
+      {isPaymentModalOpen && (
+        <div className="menu-modal-overlay" role="dialog" aria-modal="true" aria-label="Payment details">
+          <div className="menu-modal glass-panel payment-modal-panel">
+            {(paymentMethod !== 'cash' || cashPaymentState === 'confirmed' || cashPaymentState === 'idle') && (
+              <button
+                type="button"
+                className="modal-close"
+                onClick={closePaymentModal}
+                aria-label="Close payment modal"
+              >
+                x
+              </button>
+            )}
+
+            <h3>Review Payment</h3>
+            <p className="modal-description">Order type: {orderType === 'dine-in' ? 'Dine-in' : 'Pick-up'} | Table: {tableId}</p>
+
+            <div className="payment-summary">
+              {cartEntries.map((entry) => (
+                <div key={entry.lineKey} className="payment-summary-row">
+                  <span>
+                    {entry.quantity}x {entry.item.name}
+                    {entry.variant?.label ? ` (${entry.variant.label})` : ''}
+                  </span>
+                  <strong>{formatMoney(entry.unitPrice * entry.quantity)}</strong>
+                </div>
+              ))}
+              <div className="payment-summary-total">
+                <span>Total</span>
+                <strong>{formatMoney(total)}</strong>
+              </div>
+            </div>
+
+            {paymentMethod === 'cash' && (
+              <div className="payment-cash-note">
+                {cashPaymentState === 'creating' && 'Creating your order...'}
+                {cashPaymentState === 'waiting' && 'Please pay at the cashier. Waiting for admin to confirm payment.'}
+                {cashPaymentState === 'confirmed' && 'Order confirmed. Admin has marked your payment as paid.'}
+                {(cashPaymentState === 'idle' || !cashPaymentState) && 'Preparing payment details...'}
+              </div>
+            )}
+
+            {paymentMethod === 'card' && (
+              <div className="payment-fields-grid">
+                <input
+                  type="text"
+                  placeholder="Card holder name (ALL CAPS)"
+                  value={paymentDetails.cardHolderName}
+                  onChange={(event) => handlePaymentFieldChange('cardHolderName', event.target.value)}
+                  maxLength={40}
+                />
+                <small className="payment-field-hint">{getCardNameHint()}</small>
+
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Card number"
+                  value={paymentDetails.cardNumber}
+                  onChange={(event) => handlePaymentFieldChange('cardNumber', event.target.value)}
+                  maxLength={19}
+                />
+                <small className="payment-field-hint">{getCardNumberHint()}</small>
+
+                <div className="payment-fields-inline">
+                  <div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="MM/YY"
+                      value={paymentDetails.cardExpiry}
+                      onChange={(event) => handlePaymentFieldChange('cardExpiry', event.target.value)}
+                      maxLength={5}
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      placeholder="CVV"
+                      value={paymentDetails.cardCvv}
+                      onChange={(event) => handlePaymentFieldChange('cardCvv', event.target.value)}
+                      maxLength={3}
+                    />
+                    <small className="payment-field-hint">{getCardCvvHint()}</small>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {paymentMethod === 'bkash' && (
+              <div className="payment-fields-grid">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="bKash number"
+                  value={paymentDetails.bkashNumber}
+                  onChange={(event) => handlePaymentFieldChange('bkashNumber', event.target.value)}
+                  maxLength={11}
+                />
+                <small className="payment-field-hint">{getBkashNumberHint()} (must start with 01)</small>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  placeholder="bKash PIN"
+                  value={paymentDetails.bkashPin}
+                  onChange={(event) => handlePaymentFieldChange('bkashPin', event.target.value)}
+                  maxLength={5}
+                />
+                <small className="payment-field-hint">{getBkashPinHint()}</small>
+              </div>
+            )}
+
+            {paymentMethod !== 'cash' && (
+              <div className="payment-modal-actions">
+                <button type="button" className="btn secondary" onClick={closePaymentModal}>
+                  Back
+                </button>
+                <button type="button" className="btn" onClick={placeOrder} disabled={isSubmittingOrder}>
+                  {isSubmittingOrder ? 'Processing...' : 'Confirm and Place Order'}
+                </button>
+              </div>
+            )}
+
+            {paymentMethod === 'cash' && cashPaymentState === 'confirmed' && (
+              <div className="payment-modal-actions">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setCart({});
+                    closePaymentModal();
+                    resetPaymentForm();
+                  }}
+                >
+                  Continue
+                </button>
+              </div>
+            )}
+
+            {paymentMethod === 'cash' && (cashPaymentState === 'creating' || cashPaymentState === 'waiting') && (
+              <div className="payment-modal-actions">
+                <button type="button" className="btn secondary" onClick={closePaymentModal}>
+                  Back
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isOrderTrackerOpen && (
+        <div className="menu-modal-overlay" role="dialog" aria-modal="true" aria-label="Order tracker">
+          <div className="menu-modal glass-panel order-tracker-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setIsOrderTrackerOpen(false)}
+              aria-label="Close order tracker"
+            >
+              x
+            </button>
+
+            <h3>Order Tracker</h3>
+            <p className="modal-description">
+              Table: {tableId || 'Not scanned yet'} | Combined timer: {formatDuration(getTableActiveCountdownSeconds())}
+            </p>
+
+            <div className="order-tracker-list">
+              {visibleTableOrders.length === 0 ? (
+                <p className="cart-empty">No live orders for this table yet.</p>
+              ) : (
+                visibleTableOrders.map((order, index) => {
+                  const remainingSeconds = getOrderRemainingSeconds(order);
+                  const timerLabel = order.completedAt
+                    ? 'Completed'
+                    : remainingSeconds !== null
+                      ? `Remaining: ${formatDuration(remainingSeconds)}`
+                      : getOrderStageLabel(order);
+
+                  return (
+                    <article key={order._id} className="order-tracker-card">
+                      <div className="order-tracker-card-header">
+                        <strong>Order #{index + 1}</strong>
+                        <span className="order-tracker-card-status">{getOrderStageLabel(order)}</span>
+                      </div>
+
+                      <div className="order-tracker-card-meta">
+                        <span>Payment: {order.paymentStatus}</span>
+                        <span>{timerLabel}</span>
+                      </div>
+
+                      <div className="order-tracker-items">
+                        {order.items.map((item, itemIndex) => (
+                          <div key={`${order._id}-${itemIndex}`} className="order-tracker-item-row">
+                            <span>
+                              {item.quantity}x {item.menuItem.name}
+                              {item.optionLabel ? ` (${item.optionLabel})` : ''}
+                            </span>
+                            <strong>{formatMoney(item.unitPrice * item.quantity)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
       )}
