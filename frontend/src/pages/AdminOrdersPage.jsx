@@ -1,6 +1,40 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api';
 
+const StatusChip = ({ className, icon, children }) => (
+  <span className={`status-chip ${className}`}>
+    <span className="status-chip-icon" aria-hidden="true">
+      {icon}
+    </span>
+    <span className="status-chip-text">{children}</span>
+  </span>
+);
+
+const CashBundleIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <rect x="3.5" y="7" width="17" height="10" rx="2" />
+    <path d="M7 10h10M7 14h6" />
+    <path d="M8.5 5.5h9a2 2 0 0 1 2 2V15" />
+  </svg>
+);
+
+const ChefHatIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M7 10a5 5 0 0 1 10 0c1.7 0 3 1.3 3 3s-1.3 3-3 3H7c-1.7 0-3-1.3-3-3s1.3-3 3-3Z" />
+    <path d="M8 16h8v3H8z" />
+    <path d="M9 7.5 8 5.5M12 6V4M15 7.5 16 5.5" />
+  </svg>
+);
+
+const StopwatchIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <circle cx="12" cy="13" r="7" />
+    <path d="M12 13l3-2" />
+    <path d="M10 2h4M12 4V6" />
+    <path d="M16.5 5.5 18 4" />
+  </svg>
+);
+
 const AdminOrdersPage = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -138,6 +172,49 @@ const AdminOrdersPage = () => {
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
   };
 
+  const getPaymentLabel = (order) => (order.paymentStatus === 'paid' ? 'Paid' : 'Payment pending');
+
+  const getKitchenLabel = (order) => {
+    if (order.completedAt) {
+      return 'Completed';
+    }
+
+    if (!order.sentToKitchen) {
+      return 'Not sent to chef';
+    }
+
+    if (order.kitchenStatus === 'queued') {
+      return 'Queued';
+    }
+
+    if (order.kitchenStatus === 'started') {
+      return 'Cooking started';
+    }
+
+    if (order.kitchenStatus === 'cooking') {
+      return 'Cooking';
+    }
+
+    if (order.kitchenStatus === 'almost-done') {
+      return 'Almost done';
+    }
+
+    return 'Ready to serve';
+  };
+
+  const getTimerLabel = (order) => {
+    if (order.completedAt) {
+      return 'Completed';
+    }
+
+    const remainingSeconds = getRemainingSeconds(order);
+    if (remainingSeconds !== null) {
+      return formatDuration(remainingSeconds);
+    }
+
+    return order.sentToKitchen ? 'Waiting for chef to start' : 'Not active yet';
+  };
+
   const filterOrders = () => {
     if (filterStatus === 'all') return orders;
     if (filterStatus === 'pending-payment') {
@@ -220,38 +297,51 @@ const AdminOrdersPage = () => {
           <div className="list">
             {displayedOrders.map((order) => (
               <div key={order._id} className="list-item block">
-                <div>
-                  <strong>Order #{order._id.slice(-6)}</strong>
-                  <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.3rem' }}>
-                    Table: {order.tableId} | Type: {order.orderType} | Payment: {order.paymentMethod}
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-                    Items: {order.items.length} | Total: Tk {Math.round(order.totalAmount)} | Est. Time: {order.estimatedPrepTime} min
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.35rem' }}>
-                    {order.items.map((item, index) => (
-                      <div key={index}>
-                        {item.quantity}x {item.menuItem.name}
-                        {item.optionLabel ? ` (${item.optionLabel})` : ''}
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: '0.5rem', display: 'grid', gap: '0.2rem' }}>
-                    <strong>Payment: {order.paymentStatus}</strong>
-                    <strong>Kitchen: {order.completedAt ? 'completed' : order.sentToKitchen ? order.kitchenStatus : 'Not sent to chef'}</strong>
-                    <strong>
-                      Timer:{' '}
-                      {order.completedAt
-                        ? 'Completed'
-                        : getRemainingSeconds(order) !== null
-                          ? formatDuration(getRemainingSeconds(order))
-                          : order.sentToKitchen
-                            ? 'Waiting for chef to start'
-                            : 'Not active yet'}
-                    </strong>
+                <div className="order-card-grid">
+                  <div className="order-card-main">
+                    <strong className="order-card-title">Order #{order._id.slice(-6)}</strong>
+                    <div className="order-card-meta-line">
+                      Table: {order.tableId} | Type: {order.orderType} | Payment: {order.paymentMethod}
+                    </div>
+                    <div className="order-card-meta-line">
+                      Items: {order.items.length} | Total: Tk {Math.round(order.totalAmount)} | Est. Time: {order.estimatedPrepTime} min
+                    </div>
+                    <div className="order-card-items">
+                      {order.items.map((item, index) => (
+                        <div key={index}>
+                          {item.quantity}x {item.menuItem.name}
+                          {item.optionLabel ? ` (${item.optionLabel})` : ''}
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  <div style={{ marginTop: '0.8rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div className="order-card-side">
+                    <StatusChip className="status-payment" icon={<CashBundleIcon />}>
+                      {getPaymentLabel(order)}
+                    </StatusChip>
+                    <StatusChip className="status-kitchen" icon={<ChefHatIcon />}>
+                      {getKitchenLabel(order)}
+                    </StatusChip>
+                    <StatusChip className="status-timer" icon={<StopwatchIcon />}>
+                      {getTimerLabel(order)}
+                    </StatusChip>
+                    {order.completedAt && (
+                      <button
+                        type="button"
+                        className="status-chip status-archive status-chip-button"
+                        onClick={() => removeCompletedOrder(order._id)}
+                        title="Archive completed order"
+                        aria-label="Archive completed order"
+                      >
+                        <span className="status-chip-text">Archive</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="order-card-actions">
+                  <div className="order-card-actions-row">
                     {order.paymentStatus === 'pending' && (
                       <button
                         type="button"
@@ -282,18 +372,6 @@ const AdminOrdersPage = () => {
                       </button>
                     )}
 
-                    {order.completedAt && (
-                      <button
-                        type="button"
-                        className="btn small"
-                        style={{ backgroundColor: '#ef4444', color: '#fff' }}
-                        onClick={() => removeCompletedOrder(order._id)}
-                        title="Remove completed order"
-                        aria-label="Remove completed order"
-                      >
-                        X
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>
