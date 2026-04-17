@@ -7,12 +7,38 @@ const toNumberOrNull = (value) => {
   return Number.isFinite(parsedValue) ? parsedValue : null;
 };
 
+const formatVariantLabelFromKey = (key) => key
+  .split('-')
+  .filter(Boolean)
+  .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+  .join(' ');
+
 const normalizeVariants = (variantsInput) => {
-  if (!Array.isArray(variantsInput)) {
+  let parsedInput = variantsInput;
+
+  // Accept stringified payloads from older/alternate clients.
+  if (typeof parsedInput === 'string') {
+    try {
+      parsedInput = JSON.parse(parsedInput);
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  // Support object maps like { small: 120, medium: 180 }.
+  if (parsedInput && typeof parsedInput === 'object' && !Array.isArray(parsedInput)) {
+    parsedInput = Object.entries(parsedInput).map(([key, price]) => ({
+      key,
+      label: formatVariantLabelFromKey(String(key)),
+      price,
+    }));
+  }
+
+  if (!Array.isArray(parsedInput)) {
     return [];
   }
 
-  return variantsInput
+  return parsedInput
     .map((variant) => {
       const key = toNonEmptyString(variant?.key);
       const label = toNonEmptyString(variant?.label);
