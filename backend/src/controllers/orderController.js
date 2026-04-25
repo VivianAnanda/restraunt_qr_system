@@ -5,6 +5,7 @@ const KITCHEN_STATUS_VALUES = ['started', 'cooking', 'almost-done', 'ready-to-se
 const KITCHEN_STATUS_WITH_QUEUE_VALUES = ['queued', 'started', 'cooking', 'almost-done', 'ready-to-serve'];
 const PAYMENT_STATUS_VALUES = ['pending', 'paid'];
 const TRACKER_HIDE_DELAY_MS = 60 * 1000;
+const TIMER_EXTENSION_MINUTES = 5;
 
 const toValidPrice = (value) => {
   const parsedValue = Number(value);
@@ -276,6 +277,41 @@ const completeOrder = async (req, res) => {
   }
 };
 
+const extendOrderPrepTimer = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await Order.findById(id);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.completedAt) {
+      return res.status(400).json({ message: 'Completed orders cannot be extended' });
+    }
+
+    if (!order.sentToKitchen || !KITCHEN_STATUS_VALUES.includes(order.kitchenStatus)) {
+      return res.status(400).json({ message: 'Order must be active in kitchen to extend timer' });
+    }
+
+    if (!order.prepStartedAt || !order.prepEndsAt) {
+      return res.status(400).json({ message: 'Prep timer has not started yet' });
+    }
+
+    order.prepEndsAt = new Date(new Date(order.prepEndsAt).getTime() + TIMER_EXTENSION_MINUTES * 60 * 1000);
+    order.estimatedPrepTime += TIMER_EXTENSION_MINUTES;
+    order.status = toLegacyStatus(order);
+    await order.save();
+
+    const populatedOrder = await Order.findById(order._id).populate('items.menuItem', 'name price prepTime');
+
+    return res.status(200).json(populatedOrder);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 const removeCompletedOrder = async (req, res) => {
   try {
     const { id } = req.params;
@@ -345,6 +381,7 @@ module.exports = {
   updatePaymentStatus,
   sendOrderToKitchen,
   updateKitchenStatus,
+  extendOrderPrepTimer,
   completeOrder,
   removeCompletedOrder,
 };

@@ -8,6 +8,7 @@ const {
   updatePaymentStatus,
   sendOrderToKitchen,
   updateKitchenStatus,
+  extendOrderPrepTimer,
   completeOrder,
   removeCompletedOrder,
 } = require('../controllers/orderController');
@@ -23,6 +24,7 @@ router.get('/archived/list', protect, allowRoles('admin'), getArchivedOrders);
 router.patch('/:id/payment-status', protect, allowRoles('admin'), updatePaymentStatus);
 router.patch('/:id/send-to-kitchen', protect, allowRoles('admin'), sendOrderToKitchen);
 router.patch('/:id/kitchen-status', protect, allowRoles('chef', 'admin'), updateKitchenStatus);
+router.patch('/:id/extend-timer', protect, allowRoles('chef', 'admin'), extendOrderPrepTimer);
 router.patch('/:id/complete', protect, allowRoles('admin'), completeOrder);
 router.delete('/:id', protect, allowRoles('admin'), removeCompletedOrder);
 

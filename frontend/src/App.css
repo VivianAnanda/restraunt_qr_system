@@ -363,6 +363,12 @@ button:focus {
   border-color: rgba(239, 68, 68, 0.3);
 }
 
+.status-time-extend {
+  background: rgba(14, 165, 233, 0.18);
+  color: #bae6fd;
+  border-color: rgba(14, 165, 233, 0.34);
+}
+
 .status-chip.status-completed {
   background: rgba(34, 197, 94, 0.16);
   color: #bbf7d0;

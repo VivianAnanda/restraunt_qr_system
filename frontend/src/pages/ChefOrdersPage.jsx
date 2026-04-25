@@ -127,6 +127,15 @@ const ChefOrdersPage = () => {
     }
   };
 
+  const extendOrderTimer = async (orderId) => {
+    try {
+      await api.patch(`/orders/${orderId}/extend-timer`);
+      await fetchOrders();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to add time');
+    }
+  };
+
   const activeOrders = orders
     .filter((order) => order.sentToKitchen && order.kitchenStatus !== 'ready-to-serve' && order.kitchenStatus !== 'queued' && !order.completedAt)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -312,6 +321,15 @@ const ChefOrdersPage = () => {
                           <StatusChip className="status-timer" icon={<StopwatchIcon />}>
                             {getTimerLabel(order)}
                           </StatusChip>
+                          <button
+                            type="button"
+                            className="status-chip status-time-extend status-chip-button"
+                            onClick={() => extendOrderTimer(order._id)}
+                            title="Add 5 minutes to this order timer"
+                            aria-label="Add 5 minutes to this order timer"
+                          >
+                            <span className="status-chip-text">+5 min</span>
+                          </button>
                       </div>
                     </div>
 
