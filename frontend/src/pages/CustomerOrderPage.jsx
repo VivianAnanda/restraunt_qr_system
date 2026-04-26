@@ -147,7 +147,7 @@ const getTableIdFromQrValue = (rawValue) => {
 };
 
 const TRACKER_HIDE_DELAY_MS = 60 * 1000;
-const TABLE_SELECTION_OPTIONS = Array.from({ length: 20 }, (_, index) => {
+const TABLE_SELECTION_OPTIONS = Array.from({ length: 7 }, (_, index) => {
   const tableNumber = index + 1;
   const tableId = `T${tableNumber}`;
 
