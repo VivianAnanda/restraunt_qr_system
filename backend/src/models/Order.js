@@ -68,6 +68,31 @@ const orderSchema = new mongoose.Schema(
       enum: ['pending', 'paid'],
       default: 'pending',
     },
+    paymentGateway: {
+      type: String,
+      enum: ['none', 'sslcommerz'],
+      default: 'none',
+    },
+    paymentGatewayStatus: {
+      type: String,
+      enum: ['none', 'initiated', 'validated', 'failed', 'cancelled'],
+      default: 'none',
+    },
+    paymentGatewayTranId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    paymentGatewayValId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    paymentReturnBaseUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     sentToKitchen: {
       type: Boolean,
       default: false,

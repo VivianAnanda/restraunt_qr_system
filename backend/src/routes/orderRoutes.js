@@ -1,6 +1,11 @@
 const express = require('express');
 const {
   createOrder,
+  initiateSslCommerzSession,
+  deletePendingSslCommerzOrder,
+  handleSslCommerzSuccess,
+  handleSslCommerzFail,
+  handleSslCommerzCancel,
   getAllOrders,
   getArchivedOrders,
   getOrderPublicStatus,
@@ -17,6 +22,14 @@ const { protect, allowRoles } = require('../middleware/authMiddleware');
 const router = express.Router();
 
 router.post('/', createOrder);
+router.post('/payment/sslcommerz/session', initiateSslCommerzSession);
+router.delete('/payment/sslcommerz/pending/:orderId', deletePendingSslCommerzOrder);
+router.post('/payment/sslcommerz/success', handleSslCommerzSuccess);
+router.post('/payment/sslcommerz/fail', handleSslCommerzFail);
+router.post('/payment/sslcommerz/cancel', handleSslCommerzCancel);
+router.get('/payment/sslcommerz/success', handleSslCommerzSuccess);
+router.get('/payment/sslcommerz/fail', handleSslCommerzFail);
+router.get('/payment/sslcommerz/cancel', handleSslCommerzCancel);
 router.get('/:id/public-status', getOrderPublicStatus);
 router.get('/public/table/:tableId', getPublicOrdersByTable);
 router.get('/', protect, allowRoles('admin', 'chef'), getAllOrders);

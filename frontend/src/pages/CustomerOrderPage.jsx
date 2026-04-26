@@ -146,22 +146,10 @@ const getTableIdFromQrValue = (rawValue) => {
   return trimmedValue.toUpperCase();
 };
 
-const sanitizeDigits = (value, maxLength) => String(value || '').replace(/\D/g, '').slice(0, maxLength);
-
-const formatCardNumber = (value) => {
-  const digits = sanitizeDigits(value, 16);
-  return digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
-};
-
-const formatCardExpiry = (value) => {
-  const digits = sanitizeDigits(value, 4);
-  if (digits.length <= 2) {
-    return digits;
-  }
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}`;
-};
-
 const TRACKER_HIDE_DELAY_MS = 60 * 1000;
+
+const CART_DRAFT_STORAGE_KEY = 'xyz-fast-food-cart-draft';
+const SSL_PAYMENT_STORAGE_KEY = 'xyz-fast-food-ssl-payment';
 
 const CustomerOrderPage = () => {
   const [menuItems, setMenuItems] = useState([]);
@@ -171,11 +159,59 @@ const CustomerOrderPage = () => {
     }
 
     const queryTableId = new URLSearchParams(window.location.search).get('tableId');
-    return queryTableId ? queryTableId.trim().toUpperCase() : '';
+    if (queryTableId) {
+      return queryTableId.trim().toUpperCase();
+    }
+
+    const savedDraft = sessionStorage.getItem(CART_DRAFT_STORAGE_KEY);
+    if (savedDraft) {
+      try {
+        const parsedDraft = JSON.parse(savedDraft);
+        return String(parsedDraft.tableId || '').trim().toUpperCase();
+      } catch (_error) {
+        // Ignore malformed saved drafts.
+      }
+    }
+
+    return '';
   });
   const [orderType, setOrderType] = useState('dine-in');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [cart, setCart] = useState({});
+  const [paymentMethod, setPaymentMethod] = useState(() => {
+    if (typeof window === 'undefined') {
+      return 'cash';
+    }
+
+    const savedDraft = sessionStorage.getItem(CART_DRAFT_STORAGE_KEY);
+    if (savedDraft) {
+      try {
+        const parsedDraft = JSON.parse(savedDraft);
+        if (parsedDraft.paymentMethod) {
+          return parsedDraft.paymentMethod;
+        }
+      } catch (_error) {
+        // Ignore malformed saved drafts.
+      }
+    }
+
+    return 'cash';
+  });
+  const [cart, setCart] = useState(() => {
+    if (typeof window === 'undefined') {
+      return {};
+    }
+
+    const savedDraft = sessionStorage.getItem(CART_DRAFT_STORAGE_KEY);
+    if (savedDraft) {
+      try {
+        const parsedDraft = JSON.parse(savedDraft);
+        return parsedDraft.cart || {};
+      } catch (_error) {
+        // Ignore malformed saved drafts.
+      }
+    }
+
+    return {};
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
@@ -193,14 +229,6 @@ const CustomerOrderPage = () => {
   const [tableOrders, setTableOrders] = useState([]);
   const [isOrderTrackerOpen, setIsOrderTrackerOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [paymentDetails, setPaymentDetails] = useState({
-    cardHolderName: '',
-    cardNumber: '',
-    cardExpiry: '',
-    cardCvv: '',
-    bkashNumber: '',
-    bkashPin: '',
-  });
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -220,6 +248,110 @@ const CustomerOrderPage = () => {
     };
 
     fetchMenu();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    sessionStorage.setItem(
+      CART_DRAFT_STORAGE_KEY,
+      JSON.stringify({ cart, orderType, tableId, paymentMethod })
+    );
+  }, [cart, orderType, tableId, paymentMethod]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const queryParams = new URLSearchParams(window.location.search);
+    const paymentState = queryParams.get('payment');
+    const note = queryParams.get('note');
+
+    let pendingPayment = null;
+    const pendingPaymentRaw = sessionStorage.getItem(SSL_PAYMENT_STORAGE_KEY);
+    if (pendingPaymentRaw) {
+      try {
+        pendingPayment = JSON.parse(pendingPaymentRaw);
+      } catch (_error) {
+        pendingPayment = null;
+      }
+    }
+
+    const restoreDraftFromStorage = () => {
+      const savedDraftRaw = sessionStorage.getItem(CART_DRAFT_STORAGE_KEY);
+      if (!savedDraftRaw) {
+        return;
+      }
+
+      try {
+        const savedDraft = JSON.parse(savedDraftRaw);
+        if (savedDraft.cart) {
+          setCart(savedDraft.cart);
+        }
+        if (savedDraft.orderType) {
+          setOrderType(savedDraft.orderType);
+        }
+        if (savedDraft.tableId) {
+          setTableId(String(savedDraft.tableId).trim().toUpperCase());
+        }
+        if (savedDraft.paymentMethod) {
+          setPaymentMethod(savedDraft.paymentMethod);
+        }
+      } catch (_error) {
+        // Ignore malformed saved drafts.
+      }
+    };
+
+    const cleanupPendingOrder = async (orderId) => {
+      if (!orderId) {
+        return;
+      }
+
+      try {
+        await api.delete(`/orders/payment/sslcommerz/pending/${orderId}`);
+      } catch (_error) {
+        // If cleanup fails, the order remains hidden from order lists because it is still in initiated state.
+      }
+    };
+
+    if (paymentState === 'success') {
+      setMessage(note || 'Payment completed through SSLCOMMERZ sandbox. Order confirmed.');
+      setCart({});
+      setIsCartModalOpen(false);
+      setIsPaymentModalOpen(false);
+      setActiveCashOrderId('');
+      setCashPaymentState('idle');
+      sessionStorage.removeItem(SSL_PAYMENT_STORAGE_KEY);
+      sessionStorage.removeItem(CART_DRAFT_STORAGE_KEY);
+    } else if (paymentState === 'failed') {
+      setError(note || 'Payment failed. Please try again.');
+      restoreDraftFromStorage();
+      cleanupPendingOrder(pendingPayment?.orderId);
+      sessionStorage.removeItem(SSL_PAYMENT_STORAGE_KEY);
+    } else if (paymentState === 'cancelled') {
+      setError(note || 'Payment was cancelled.');
+      restoreDraftFromStorage();
+      cleanupPendingOrder(pendingPayment?.orderId);
+      sessionStorage.removeItem(SSL_PAYMENT_STORAGE_KEY);
+    } else if (pendingPayment?.orderId) {
+      restoreDraftFromStorage();
+      cleanupPendingOrder(pendingPayment.orderId);
+      sessionStorage.removeItem(SSL_PAYMENT_STORAGE_KEY);
+    }
+
+    const table = queryParams.get('tableId');
+    const nextParams = new URLSearchParams();
+
+    if (table) {
+      nextParams.set('tableId', table);
+    }
+
+    const nextQuery = nextParams.toString();
+    const cleanUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}`;
+    window.history.replaceState({}, '', cleanUrl);
   }, []);
 
   const filteredItems = useMemo(() => {
@@ -620,33 +752,6 @@ const CustomerOrderPage = () => {
     window.setTimeout(() => setIsScannerOpen(true), 75);
   };
 
-  const handlePaymentFieldChange = (field, value) => {
-    let normalizedValue = value;
-
-    if (field === 'cardHolderName') {
-      normalizedValue = String(value || '')
-        .toUpperCase()
-        .replace(/[^A-Z ]/g, '')
-        .replace(/\s{2,}/g, ' ')
-        .slice(0, 40);
-    } else if (field === 'cardNumber') {
-      normalizedValue = formatCardNumber(value);
-    } else if (field === 'cardExpiry') {
-      normalizedValue = formatCardExpiry(value);
-    } else if (field === 'cardCvv') {
-      normalizedValue = sanitizeDigits(value, 3);
-    } else if (field === 'bkashNumber') {
-      normalizedValue = sanitizeDigits(value, 11);
-    } else if (field === 'bkashPin') {
-      normalizedValue = sanitizeDigits(value, 5);
-    }
-
-    setPaymentDetails((prev) => ({
-      ...prev,
-      [field]: normalizedValue,
-    }));
-  };
-
   const getOrderItemsPayload = () =>
     cartEntries.map((entry) => ({
       menuItem: entry.item._id,
@@ -658,17 +763,6 @@ const CustomerOrderPage = () => {
       ...(entry.specialInstructions ? { specialInstructions: entry.specialInstructions } : {}),
     }));
 
-  const resetPaymentForm = () => {
-    setPaymentDetails({
-      cardHolderName: '',
-      cardNumber: '',
-      cardExpiry: '',
-      cardCvv: '',
-      bkashNumber: '',
-      bkashPin: '',
-    });
-  };
-
   const closePaymentModal = () => {
     setIsPaymentModalOpen(false);
 
@@ -677,66 +771,6 @@ const CustomerOrderPage = () => {
       setCashPaymentState('idle');
     }
   };
-
-  const validatePaymentDetails = () => {
-    if (paymentMethod === 'cash') {
-      return '';
-    }
-
-    if (paymentMethod === 'card') {
-      const cardHolderName = paymentDetails.cardHolderName.trim();
-      const cardNumberDigits = paymentDetails.cardNumber.replace(/\s/g, '');
-      const cardExpiry = paymentDetails.cardExpiry;
-      const cardCvv = paymentDetails.cardCvv;
-
-      if (!/^[A-Z]+(?: [A-Z]+)+$/.test(cardHolderName)) {
-        return 'Card holder name must be in ALL CAPS with at least first and last name.';
-      }
-
-      if (!/^\d{16}$/.test(cardNumberDigits)) {
-        return 'Card number must be exactly 16 digits.';
-      }
-
-      if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry)) {
-        return 'Card expiry must be in MM/YY format.';
-      }
-
-      const [month, year] = cardExpiry.split('/');
-      const expiryDate = new Date(2000 + Number(year), Number(month), 0, 23, 59, 59, 999);
-      if (Number.isNaN(expiryDate.getTime()) || expiryDate < new Date()) {
-        return 'Card expiry date cannot be in the past.';
-      }
-
-      if (!/^\d{3}$/.test(cardCvv)) {
-        return 'Card CVV must be exactly 3 digits.';
-      }
-
-      return '';
-    }
-
-    if (!/^01\d{9}$/.test(paymentDetails.bkashNumber)) {
-      return 'bKash number must be exactly 11 digits and start with 01.';
-    }
-
-    if (!/^\d{5}$/.test(paymentDetails.bkashPin)) {
-      return 'bKash PIN must be exactly 5 digits.';
-    }
-
-    return '';
-  };
-
-  const getCardNumberHint = () => {
-    const digits = paymentDetails.cardNumber.replace(/\s/g, '').length;
-    return `${digits}/16 digits`;
-  };
-
-  const getCardCvvHint = () => `${paymentDetails.cardCvv.length}/3 digits`;
-
-  const getBkashNumberHint = () => `${paymentDetails.bkashNumber.length}/11 digits`;
-
-  const getBkashPinHint = () => `${paymentDetails.bkashPin.length}/5 digits`;
-
-  const getCardNameHint = () => 'Use ALL CAPS, letters and spaces only (e.g. MD RAHIM UDDIN).';
 
   const getOrderRemainingSeconds = (order) => {
     if (order?.completedAt) {
@@ -930,17 +964,11 @@ const CustomerOrderPage = () => {
     }
   };
 
-  const placeOrder = async () => {
+  const startSecureGatewayCheckout = async () => {
     setMessage('');
     setError('');
 
     if (paymentMethod === 'cash') {
-      return;
-    }
-
-    const validationError = validatePaymentDetails();
-    if (validationError) {
-      setError(validationError);
       return;
     }
 
@@ -958,26 +986,34 @@ const CustomerOrderPage = () => {
 
     try {
       setIsSubmittingOrder(true);
-      const response = await api.post('/orders', {
+
+      const response = await api.post('/orders/payment/sslcommerz/session', {
         tableId,
         orderType,
         paymentMethod,
         items,
+        returnBaseUrl: window.location.origin,
       });
 
-      const paymentText = response.data.paymentStatus === 'paid'
-        ? 'Payment completed successfully.'
-        : 'Payment pending. Please pay at the cashier.';
+      if (!response.data?.gatewayUrl) {
+        throw new Error('Gateway redirect URL not returned by server');
+      }
 
-      setMessage(`Order placed. ${paymentText} ETA: ${response.data.estimatedPrepTime} min.`);
-      setCart({});
-      setIsPaymentModalOpen(false);
-      setIsCartModalOpen(false);
-      resetPaymentForm();
-      setActiveCashOrderId('');
-      setCashPaymentState('idle');
+      sessionStorage.setItem(
+        SSL_PAYMENT_STORAGE_KEY,
+        JSON.stringify({
+          orderId: response.data.orderId,
+          sessionKey: response.data.sessionKey || '',
+          paymentMethod,
+          tableId,
+          orderType,
+          createdAt: Date.now(),
+        })
+      );
+
+      window.location.href = response.data.gatewayUrl;
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to place order');
+      setError(err.response?.data?.message || err.message || 'Failed to initialize secure payment');
     } finally {
       setIsSubmittingOrder(false);
     }
@@ -1439,73 +1475,10 @@ const CustomerOrderPage = () => {
               </div>
             )}
 
-            {paymentMethod === 'card' && (
-              <div className="payment-fields-grid">
-                <input
-                  type="text"
-                  placeholder="Card holder name (ALL CAPS)"
-                  value={paymentDetails.cardHolderName}
-                  onChange={(event) => handlePaymentFieldChange('cardHolderName', event.target.value)}
-                  maxLength={40}
-                />
-                <small className="payment-field-hint">{getCardNameHint()}</small>
-
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="Card number"
-                  value={paymentDetails.cardNumber}
-                  onChange={(event) => handlePaymentFieldChange('cardNumber', event.target.value)}
-                  maxLength={19}
-                />
-                <small className="payment-field-hint">{getCardNumberHint()}</small>
-
-                <div className="payment-fields-inline">
-                  <div>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="MM/YY"
-                      value={paymentDetails.cardExpiry}
-                      onChange={(event) => handlePaymentFieldChange('cardExpiry', event.target.value)}
-                      maxLength={5}
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="password"
-                      inputMode="numeric"
-                      placeholder="CVV"
-                      value={paymentDetails.cardCvv}
-                      onChange={(event) => handlePaymentFieldChange('cardCvv', event.target.value)}
-                      maxLength={3}
-                    />
-                    <small className="payment-field-hint">{getCardCvvHint()}</small>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {paymentMethod === 'bkash' && (
-              <div className="payment-fields-grid">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="bKash number"
-                  value={paymentDetails.bkashNumber}
-                  onChange={(event) => handlePaymentFieldChange('bkashNumber', event.target.value)}
-                  maxLength={11}
-                />
-                <small className="payment-field-hint">{getBkashNumberHint()} (must start with 01)</small>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  placeholder="bKash PIN"
-                  value={paymentDetails.bkashPin}
-                  onChange={(event) => handlePaymentFieldChange('bkashPin', event.target.value)}
-                  maxLength={5}
-                />
-                <small className="payment-field-hint">{getBkashPinHint()}</small>
+            {paymentMethod !== 'cash' && (
+              <div className="payment-cash-note">
+                Your payment will be processed on the secure SSLCOMMERZ sandbox checkout page.
+                We do not collect card or bKash credentials inside this website.
               </div>
             )}
 
@@ -1514,8 +1487,8 @@ const CustomerOrderPage = () => {
                 <button type="button" className="btn secondary" onClick={closePaymentModal}>
                   Back
                 </button>
-                <button type="button" className="btn" onClick={placeOrder} disabled={isSubmittingOrder}>
-                  {isSubmittingOrder ? 'Processing...' : 'Confirm and Place Order'}
+                <button type="button" className="btn" onClick={startSecureGatewayCheckout} disabled={isSubmittingOrder}>
+                  {isSubmittingOrder ? 'Connecting...' : 'Pay With SSLCOMMERZ'}
                 </button>
               </div>
             )}
@@ -1528,7 +1501,6 @@ const CustomerOrderPage = () => {
                   onClick={() => {
                     setCart({});
                     closePaymentModal();
-                    resetPaymentForm();
                   }}
                 >
                   Continue
