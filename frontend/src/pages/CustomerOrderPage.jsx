@@ -147,6 +147,15 @@ const getTableIdFromQrValue = (rawValue) => {
 };
 
 const TRACKER_HIDE_DELAY_MS = 60 * 1000;
+const TABLE_SELECTION_OPTIONS = Array.from({ length: 20 }, (_, index) => {
+  const tableNumber = index + 1;
+  const tableId = `T${tableNumber}`;
+
+  return {
+    value: tableId,
+    label: `${tableId} - Table ${tableNumber}`,
+  };
+});
 
 const CART_DRAFT_STORAGE_KEY = 'xyz-fast-food-cart-draft';
 const SSL_PAYMENT_STORAGE_KEY = 'xyz-fast-food-ssl-payment';
@@ -877,6 +886,20 @@ const CustomerOrderPage = () => {
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
   };
 
+  const tableSelectionOptions = useMemo(() => {
+    if (!tableId || TABLE_SELECTION_OPTIONS.some((option) => option.value === tableId)) {
+      return TABLE_SELECTION_OPTIONS;
+    }
+
+    return [
+      {
+        value: tableId,
+        label: `${tableId} - Selected table`,
+      },
+      ...TABLE_SELECTION_OPTIONS,
+    ];
+  }, [tableId]);
+
   const handleModalAddToCart = () => {
     if (!selectedItem) {
       return;
@@ -909,7 +932,7 @@ const CustomerOrderPage = () => {
     }
 
     if (!tableId.trim()) {
-      setError('Please scan a table QR before placing the order.');
+      setError('Please scan a table QR or select a table number before placing the order.');
       return;
     }
 
@@ -980,7 +1003,7 @@ const CustomerOrderPage = () => {
     }
 
     if (!tableId.trim()) {
-      setError('Please scan a table QR before placing the order.');
+      setError('Please scan a table QR or select a table number before placing the order.');
       return;
     }
 
@@ -1137,22 +1160,34 @@ const CustomerOrderPage = () => {
 
         <div className="cart-order-fields">
           <div className="table-scan-panel">
-            {tableId ? (
-              <div className="table-scan-status-success">
-                <span className="table-scan-success-label">Table: {tableId}</span>
-                <button type="button" className="table-scan-retry" onClick={() => setIsScannerOpen(true)} title="Retry scan">
-                  ↻
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="table-scan-status">
-                  <span className="table-scan-label">Table</span>
-                </div>
-                <button type="button" className="table-scan-button" onClick={() => setIsScannerOpen(true)}>
-                  Scan table QR
-                </button>
-              </>
+            <div className="table-scan-status">
+              <span className="table-scan-label">Table</span>
+              <strong>{tableId ? `Selected: ${tableId}` : 'Pick from list or scan QR'}</strong>
+            </div>
+
+            <div className="table-selection-actions">
+              <select
+                className="table-manual-select"
+                value={tableId}
+                onChange={(event) => setTableId(event.target.value)}
+              >
+                <option value="">Choose your table</option>
+                {tableSelectionOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              <button type="button" className="table-scan-button" onClick={() => setIsScannerOpen(true)}>
+                Scan table QR
+              </button>
+            </div>
+
+            {tableId && (
+              <p className="table-selection-hint">
+                Selected {tableId}. You can change it from the dropdown or scan another QR.
+              </p>
             )}
           </div>
           <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
@@ -1329,22 +1364,34 @@ const CustomerOrderPage = () => {
 
             <div className="cart-order-fields">
               <div className="table-scan-panel">
-                {tableId ? (
-                  <div className="table-scan-status-success">
-                    <span className="table-scan-success-label">Table: {tableId}</span>
-                    <button type="button" className="table-scan-retry" onClick={() => setIsScannerOpen(true)} title="Retry scan">
-                      ↻
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="table-scan-status">
-                      <span className="table-scan-label">Table</span>
-                    </div>
-                    <button type="button" className="table-scan-button" onClick={() => setIsScannerOpen(true)}>
-                      Scan table QR
-                    </button>
-                  </>
+                <div className="table-scan-status">
+                  <span className="table-scan-label">Table</span>
+                  <strong>{tableId ? `Selected: ${tableId}` : 'Pick from list or scan QR'}</strong>
+                </div>
+
+                <div className="table-selection-actions">
+                  <select
+                    className="table-manual-select"
+                    value={tableId}
+                    onChange={(event) => setTableId(event.target.value)}
+                  >
+                    <option value="">Choose your table</option>
+                    {tableSelectionOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button type="button" className="table-scan-button" onClick={() => setIsScannerOpen(true)}>
+                    Scan table QR
+                  </button>
+                </div>
+
+                {tableId && (
+                  <p className="table-selection-hint">
+                    Selected {tableId}. You can change it from the dropdown or scan another QR.
+                  </p>
                 )}
               </div>
               <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}>
